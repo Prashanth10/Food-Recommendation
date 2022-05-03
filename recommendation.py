@@ -1,7 +1,14 @@
 import pandas as pd
 import numpy as np
+from scipy.sparse import csr_matrix
+import pickle
 
 def food_recommendation(Food_Name):
+    food = pd.read_csv("model/food.csv")
+    dataset = pd.read_csv("model/users_combined_rating_pivot.csv")
+    knn_model = pickle.load(open('model/knn_model.pkl','rb'))
+    csr_dataset = csr_matrix(dataset.values)
+    dataset.reset_index(inplace=True)
     n = 10
     FoodList = food[food['Name'].str.contains(Food_Name)]  
     if len(FoodList):        
