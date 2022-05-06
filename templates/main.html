@@ -13,17 +13,17 @@
 	<h1>Food Recommendation</h1>
 
      <!-- Main Input For Receiving Query to our ML -->
-    <form action="{{ url_for('recommend')}}"method="post">
+    <form action="{{ url_for('recommend_knn')}}"method="post">
     	<input type="text" name="foodName" placeholder="Food Name" required="required" />
       <button type="submit" class="btn btn-primary btn-block btn-large">Show recommendations</button>
     </form>
 
    <br>
    <br>
-   {{ recommendation_text }}
-
+   {% if recommendation_text %}
+       <p>{{ recommendation_text }}</p>
+   {% endif %}
  </div>
-
 
 </body>
 </html>
