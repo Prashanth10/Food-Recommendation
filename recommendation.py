@@ -5,13 +5,21 @@ import pickle
 
 food = pd.read_csv("model/food.csv")
 ratings = pd.read_csv("model/ratings.csv")
+ratings2 = pd.read_csv("model/ratings2.csv")
 dataset = pd.read_csv("model/users_combined_rating_pivot.csv")
 preds = pd.read_csv("model/predicted.csv")
+preds2 = pd.read_csv("model/predicted2.csv")
+
 
 preds.rename(columns = {"Unnamed: 0":"Food_ID"}, inplace=True)
 preds.reset_index(drop=True,inplace=True)
 preds.set_index('Food_ID', inplace=True)
 preds.columns = preds.columns.map(float)
+
+preds2.rename(columns = {"Unnamed: 0":"Food_ID"}, inplace=True)
+preds2.reset_index(drop=True,inplace=True)
+preds2.set_index('Food_ID', inplace=True)
+preds2.columns = preds2.columns.map(float)
     
 def knn_food_recommendation(Food_Name):
 
@@ -44,44 +52,29 @@ def knn_food_recommendation(Food_Name):
     else:
         return "No Similar Foods."
 
-
-def svd_food_recommendation(predictions, userID, food, original_ratings, num_recommendations):
+def svd_new_order(User_id, order_data):
+#     ratings2.drop(ratings2.tail(1).index,inplace=True)
+    uu = pd.read_csv("model/Id.csv")
+    uu = uu.astype({"originalId": str})
+    fil = uu['originalId'].isin([User_id])
+    fil2 = fil.any()
+    if(fil2):
+        uid = uu.loc[fil]['userId']
+        uid = str(float(uid))
+    else:
+        uid = str(float(uu.tail(1).userId)+1)
+        uu.loc[len(uu.index)] = [User_id, uid]
+        uu.to_csv("model/Id.csv", index=False)
+    for ind in order_data.index:
+#         print(rating_data_nested_list['Food_ID'][ind], rating_data_nested_list['rating'][ind])
+        foodName = order_data["Food_Name"][ind]
+        flt = food['Name'] == foodName
+        foodId = int(food.loc[flt]['Food_ID'])
+        flt = ratings2['Food_ID'] == foodId
+        food_rating = ratings2.loc[flt]['Rating'].mean()
+        ratings2.loc[len(ratings2.index)] = [uid, foodId, food_rating]
     
-
-    # Get and sort the user's predictions
-    user_row_number = userID - 1 # User ID starts at 1, not 0
-    sorted_user_predictions = preds.iloc[user_row_number].sort_values(ascending=False) # User ID starts at 1
-    
-    # Get the user's data and merge in the food information.
-    user_data = original_ratings[original_ratings.User_ID == (userID)]
-    user_full = (user_data.merge(food, how = 'left', left_on = 'Food_ID', right_on = 'Food_ID').
-                     sort_values(['Rating'], ascending=False)
-                 )
-    
-    # print('User {0} has already rated {1} food.'.format(userID, user_full.shape[0]))
-    # print('Recommending highest {0} predicted ratings food not already rated.'.format(num_recommendations))
-#     sorted_user_predictions.set_index('Food_ID', inplace=True)
-    sorted_user_predictions_df = pd.DataFrame(sorted_user_predictions)
-    sorted_user_predictions_df.index.name = "Food_ID"
-    # print(user_full)
-    # print(sorted_user_predictions_df.reset_index())
-    
-#     Recommend the highest predicted rating foods that the user hasn't tasted yet.
-    recommendations = (food[~food['Food_ID'].isin(user_full['Food_ID'])].
-         merge(pd.DataFrame(sorted_user_predictions).reset_index(), how = 'left',
-               left_on = 'Food_ID',
-               right_on = 'Food_ID').
-         rename(columns = {user_row_number: 'Predictions'}).
-         sort_values('Predictions', ascending = False).
-                       iloc[:num_recommendations, :-1]
-                      )
-
-    return recommendations
-
-def svd_new_user_rating(predictions, userID, Food_ID, rating):
-    ratings2 = pd.read_csv("ratings.csv")
-    ratings2.drop(ratings2.tail(1).index,inplace=True)
-    ratings2.loc[len(ratings2.index)] = [userID, Food_ID, rating]
+    ratings2.to_csv('model/ratings2.csv', index=False)
     dataset_2 = ratings2.pivot_table(index='User_ID',columns='Food_ID',values='Rating')
     dataset_2.fillna(0,inplace=True)
     R = dataset_2.values
@@ -93,11 +86,65 @@ def svd_new_user_rating(predictions, userID, Food_ID, rating):
     sigma = np.diag(sigma)
     all_user_predicted_ratings = np.dot(np.dot(U, sigma), Vt) + user_ratings_mean.reshape(-1, 1)
     preds2 = pd.DataFrame(all_user_predicted_ratings, columns = dataset_2.columns)
-    preds2.to_csv('predicted2.csv')
+    preds2.to_csv('model/predicted2.csv')
     return
 
-predictions = svd_food_recommendation(preds, 4, food, ratings, 10)
-print(predictions)
+
+def svd_food_recommendation(predictions, userID, food, original_ratings, num_recommendations):
+    
+    # Get and sort the user's predictions
+    predictions.index = predictions.index.map(str)
+    uu = pd.read_csv("model/Id.csv")
+    uu = uu.astype({"originalId": str})
+    fil = uu['originalId'].isin([userID])
+    user_row_number = uu.loc[fil]['userId']
+    user_row_number = str(int(float(user_row_number))-1)
+    print(str(float(user_row_number)+1))
+#     user_row_number = str(int(float(userID))-1)
+    select = predictions.loc[predictions.index==user_row_number]
+    sorted_user_predictions = select.iloc[0,:].sort_values(ascending=False)
+    # Get the user's data and merge in the food information.
+    user_data = original_ratings[original_ratings.User_ID.map(str) == str(float(user_row_number)+1)]
+    user_full = (user_data.merge(food, how = 'left', left_on = 'Food_ID', right_on = 'Food_ID').
+                     sort_values(['Rating'], ascending=False)
+                 )
+    
+    sorted_user_predictions_df = pd.DataFrame(sorted_user_predictions)
+    sorted_user_predictions_df.index.name = "Food_ID"
+#     sorted_user_predictions_df['Food_ID'] = sorted_user_predictions_df.index
+    sorted_user_predictions_df = sorted_user_predictions_df.reset_index()
+    # display(user_data)
+    # display(sorted_user_predictions_df)
+#     print(sorted_user_predictions_df.index)
+    
+#     Recommend the highest predicted rating foods that the user hasn't tasted yet.
+    recommendations = (food[~food['Food_ID'].isin(user_full['Food_ID'])].
+         merge(pd.DataFrame(sorted_user_predictions).reset_index(), how = 'left',
+               left_on = 'Food_ID',
+               right_on = 'Food_ID').
+         rename(columns = {str(user_row_number): 'Predictions'}).
+         sort_values('Predictions', ascending = False).
+                       iloc[:num_recommendations, :-1]
+                      )
+
+    return user_full, recommendations
+
+
+# import json
+
+# # some JSON:
+# x =  '{ "userID":"2345", "Food_Name": ["tricolour salad","banana walnut smoothie","andhra pan fried pomfret"]}'
+
+# # parse x:
+# order_data = json.loads(x)
+# User_id = order_data["userID"]
+# del order_data["userID"]
+# order_data = pd.DataFrame(order_data)
+# order_data
+
+# svd_new_order(User_id, order_data)
+# already_rated, predictions = svd_food_recommendation(preds2, '2345.0', food, ratings2, 10)
+# predictions
 
 #data = knn_food_recommendation("chicken biryani")
 #print(data)
